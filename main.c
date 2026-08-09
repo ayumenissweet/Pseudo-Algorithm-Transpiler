@@ -1,38 +1,57 @@
 #include <stdio.h>
+#include <stdlib.h>
 
-#include "include/lexer.h"
 #include "include/types.h"
-#include "include/map.h"
+#include "include/lexer.h"
+#include "include/parser.h"
+#include "include/emitter.h"
 
-const char* token_type_to_string(TokenType type) {
-    switch (type) {
-        case ALGORITHM:    return "ALGORITHM";
-        case BEGIN:        return "BEGIN";
-        case END:          return "END";
-        case WRITE:        return "WRITE";
-        case LPAR:         return "LPAR";
-        case RPAR:         return "RPAR";
-        case IDENTIFIER:   return "IDENTIFIER";
-        case SEMICOLON:    return "SEMICOLON";
-        case TOKEN_STRING: return "TOKEN_STRING";
-        case TOKEN_ERR:    return "TOKEN_ERR";
-        case TOKEN_UNKNOWN: return "TOKEN_UNKNOWN";
-        case TOKEN_EOF:    return "TOKEN_EOF";
-        default:           return "UNKNOWN_TOKEN";
+int main(void)
+{
+    char path[256] = "main.pas";
+
+    char *source = read_file(path);
+
+    if (!source) {
+        return 1;
     }
-}
 
-int main(){
-    char filepath[256] = "main.pas";
-    Token next;
+    TokenArray token_arr = tokenize(source);
 
-    char* buffer = read_file(filepath);
-    Lexer lexer; 
-    lexer_init(&lexer, buffer);
+    Parser parser = (Parser) {
+        .tokens = token_arr,
+        .current = 0
+    };
 
-    next =next_token(&lexer);
-    while(next.type != TOKEN_EOF){
-      printf("Type : %s\nLexem : %s\nLine: %d\n",token_type_to_string(next.type) , next.lexem, next.line);
-      next = next_token(&lexer);
+    ASTNode *root = parse_program(&parser);
+
+    if (!root) {
+        printf("ERROR : Parsing Failed\n");
+        free(source);
+        free_token_array(&token_arr);
+        return 1;
     }
+
+    char filename[256];
+
+    snprintf(
+        filename,
+        sizeof(filename),
+        "%s.c",
+        root->data.program.name
+    );
+
+    FILE *F = fopen(filename, "w");
+      if (!F) {
+          return 1;
+     }
+     
+    convert_c(root, F);
+    fclose(F);
+     
+
+    free(source);
+    free_token_array(&token_arr);
+
+    return 0;
 }

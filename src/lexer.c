@@ -168,7 +168,7 @@ Token next_token(Lexer* lexer){
                   return make_token(lexer,TOKEN_ERR, slice);
                 }
               }while(c != '\'');
-              char* slice = get_slice(lexer->file, lexer->start,lexer->pos);
+              char* slice = get_slice(lexer->file, lexer->start,lexer->pos - 1);
               return make_token(lexer,TOKEN_STRING,slice);
             } 
 
@@ -204,4 +204,70 @@ Token next_token(Lexer* lexer){
         }
     //we reach the end and return that token
     return make_token(lexer,TOKEN_EOF,"END");
+}
+
+TokenArray tokenize(char* source){
+  Lexer lexer;
+  lexer_init(&lexer, source);
+
+  TokenArray arr;
+  arr.count = 0;
+  arr.capacity = 64; //arbitrary starting size, grows as needed
+  arr.tokens = malloc(sizeof(Token) * arr.capacity);
+  if(!arr.tokens){
+    arr.capacity = 0;
+    return arr;
+  }
+
+  while(true){
+    if(arr.count >= arr.capacity){
+      int new_capacity = arr.capacity * 2;
+      Token* new_tokens = realloc(arr.tokens, sizeof(Token) * new_capacity);
+      if(!new_tokens) break; //bail out, caller gets whatever we collected so far
+      arr.tokens = new_tokens;
+      arr.capacity = new_capacity;
+    }
+
+    Token tok = next_token(&lexer);
+    arr.tokens[arr.count++] = tok;
+
+    if(tok.type == TOKEN_EOF) break;
+  }
+
+  return arr;
+}
+
+void free_token_array(TokenArray* arr){
+  for(int i = 0; i < arr->count; i++){
+    TokenType type = arr->tokens[i].type;
+    if(type != SEMICOLON && type != LPAR && type != RPAR && type != TOKEN_EOF){
+      free(arr->tokens[i].lexem);
+    }
+  }
+  free(arr->tokens);
+  arr->tokens = NULL;
+  arr->count = 0;
+  arr->capacity = 0;
+}
+
+Token peek_token(Parser *p) {
+    return p->tokens.tokens[p->current];
+}
+
+Token advance_token(Parser *p) {
+    return p->tokens.tokens[p->current++];
+}
+
+Token consume_token(Parser *p, TokenType type, const char *err_msg) {
+    Token token = peek_token(p);
+    if (token.type == type)
+        return advance_token(p);
+
+    fprintf(
+        stderr,
+        "Parse Error [Line %d]: %s\n",
+        token.line,
+        err_msg
+    );
+    exit(1);
 }
